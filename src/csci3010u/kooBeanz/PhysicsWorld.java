@@ -1,5 +1,9 @@
 package csci3010u.kooBeanz;
 
+
+
+
+import java.util.Random;
 import org.jbox2d.collision.AABB;
 import org.jbox2d.collision.CircleDef;
 import org.jbox2d.collision.PolygonDef;
@@ -8,106 +12,136 @@ import org.jbox2d.dynamics.Body;
 import org.jbox2d.dynamics.BodyDef;
 import org.jbox2d.dynamics.World;
 
-import android.util.Log;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Paint.Style;
+import android.view.View;
 
-public class PhysicsWorld
-{
-    final private int MAXBALLS = 20;
-    final private float FRAMERATE = 30f;
+public class PhysicsWorld extends View{
 
-    private float timeStep = (1f / FRAMERATE);
-    private int iterations = 5;
+	protected static final int GUIUPDATEIDENTIFIER = 0x231;
+	public int targetFPS = 40;
+	public float timeStep = 10.0f / targetFPS;
+	public int iterations = 5;
+	private Body[] bodies;
+	private int count = 0;
+	private AABB worldAABB;
+	public World world;
+	private PolygonDef groundShapeDef;
+	public int World_W,World_H;
+	private Paint paint;
+	private float radius=10;
 
-//    private Body[] bodies;
-    private int count = 0;
+	public PhysicsWorld(Context context,int W,int H) {
+		super(context);
+		World_W=W;
+		World_H=H;
 
-    private AABB worldAABB;
-    private World world;
-    
-    public void createWorld()
-    {
-        // Step 1: Create Physics World Boundaries
-        worldAABB = new AABB();
-        worldAABB.lowerBound.set(new Vec2(-100f, -100f));
-        worldAABB.upperBound.set(new Vec2(100f, 100f));
+		// Step 1: Create Physics World Boundaries
+		worldAABB = new AABB();
+		Vec2 min = new Vec2(-50, -50);
+		Vec2 max = new Vec2(World_W + 50, World_H + 50);
+		worldAABB.lowerBound.set(min);
+		worldAABB.upperBound.set(max);
 
-        // Step 2: Create Physics World with Gravity
-        Vec2 gravity = new Vec2(0f, -10f);
-        boolean doSleep = false;
-        world = new World(worldAABB, gravity, doSleep);
-//        bodies = new Body[MAXBALLS];
-    }
+		// Step 2: Create Physics World with Gravity
+		Vec2 gravity = new Vec2((float) 0.0, (float) -20.0);
+		//Vec2 gravity = new Vec2((float) 0.0, (float) 0.0);
+		boolean doSleep = true;
+		world = new World(worldAABB, gravity, doSleep);
 
-    public void setGrav(float x, float y)
-    {
-    	world.setGravity(new Vec2(x,y));
-    }
+     
+		// Step 3:
 
-    // addbox and addball are so close that they should be merged
-    public void addBox(float x, float y, float xr, float yr, float angle, boolean dynamic)
-    {
-    	if (count < (MAXBALLS-1))
-    	{
-	        BodyDef groundBodyDef;
-	        groundBodyDef = new BodyDef();
-	        groundBodyDef.position.set(new Vec2(x, y));
-	        groundBodyDef.angle = angle;
-	        Body groundBody = world.createBody(groundBodyDef);
-	
-	        PolygonDef groundShapeDef;
-	        groundShapeDef = new PolygonDef();
-	        groundShapeDef.setAsBox(xr, yr);
-	        groundShapeDef.density = 1.0f;
-	        groundBody.createShape(groundShapeDef);
-	        if (dynamic)
-	        {
-	        	groundBody.setMassFromShapes();
-	        }
-	        // only increment the count when dynamic
-	        if (dynamic)
-	        {
-	        	count++;
-	        }
-    	}
-    }
+		//Create Ground Box :
 
-    public void addBall(float x, float y, float r, boolean dynamic)
-    {
-    	if (count < (MAXBALLS-1))
-    	{
-	        BodyDef groundBodyDef2;
-	        CircleDef groundShapeDef2;
-	        groundBodyDef2 = new BodyDef();
-	        groundBodyDef2.position.set(new Vec2(x,y));
-	        Body groundBody2 = world.createBody(groundBodyDef2);
-	        groundShapeDef2 = new CircleDef();
-	        groundShapeDef2.radius = r;
-	        groundShapeDef2.density = 1.0f;
-	        groundBody2.createShape(groundShapeDef2);
-	        if (dynamic)
-	        {
-	        	groundBody2.setMassFromShapes();
-	        }
-	        // only increment the count when dynamic
-	        if (dynamic)
-	        {
-	        	count++;
-	        }
-    	}
-    }
+		BodyDef bodyDef = new BodyDef();
+		bodyDef.position.set(new Vec2((float) 0.0, (float) -10.0));
+		Body groundBody = world.createBody(bodyDef);
+		groundShapeDef = new PolygonDef();
+		groundShapeDef.setAsBox((float) World_W, (float) 10);
+		groundBody.createShape(groundShapeDef);
 
-    public void update()
-    {
-        world.step(timeStep, iterations);
-    }
+		// up :
+		bodyDef = new BodyDef();
+		bodyDef.position.set(new Vec2((float) 0.0, (float) (World_H+10.0) ));
+		groundBody = world.createBody(bodyDef);
+		groundShapeDef = new PolygonDef();
+		groundShapeDef.setAsBox((float) World_W, (float) 10);
+		groundBody.createShape(groundShapeDef);
 
-    public int getCount()
-    {
-    	return count;
-    }
+		// left :
+		bodyDef = new BodyDef();
+		bodyDef.position.set(new Vec2((float) -10, (float) 0.0 ));
+		groundBody = world.createBody(bodyDef);
+		groundShapeDef = new PolygonDef();
+		groundShapeDef.setAsBox((float)10, (float) World_H);
+		groundBody.createShape(groundShapeDef);
 
-    public Body getBodyList()
-    {
-    	return world.getBodyList();
-    }
+		// right :
+		bodyDef = new BodyDef();
+		bodyDef.position.set(new Vec2((float) World_W+10, (float) 0.0 ));
+		groundBody = world.createBody(bodyDef);
+		groundShapeDef = new PolygonDef();
+		groundShapeDef.setAsBox((float)10, (float) World_H);
+		groundBody.createShape(groundShapeDef);
+
+		// step 4: initialize
+		bodies=new Body[50];
+
+		paint=new Paint();
+		paint.setStyle(Style.FILL);
+		paint.setColor(Color.RED);
+
+	}
+
+
+
+	public void addBall() {
+
+		// Create Dynamic Body
+		BodyDef bodyDef = new BodyDef();
+		Random rnd = new Random();
+		bodyDef.position.set((float) radius*2+rnd.nextInt( (int)(World_W-radius*4) ), (float)2*radius+ rnd.nextInt( (int)(World_H-radius*4) ));
+		bodies[count] = world.createBody(bodyDef);
+
+		// Create Shape with Properties
+		CircleDef circle = new CircleDef();
+		circle.radius = (float) radius;
+		circle.density = (float) 1.0;
+		//circle.restitution=0.0f;
+
+		// Assign shape to Body
+		bodies[count].createShape(circle);
+		bodies[count].setMassFromShapes();
+		bodies[count].m_linearDamping = 1;
+		
+
+		// Increase Counter
+		count += 1;        
+
+	}
+
+  
+
+	public void update() {
+		world.step(   timeStep  , iterations);
+		postInvalidate();
+	}  
+
+	@Override
+	protected void onDraw(Canvas canvas) {
+		// draw balls
+
+
+		for(int j = 0;j<count;j++) {
+			canvas.drawCircle(bodies[j].getPosition().x,World_H- bodies[j].getPosition().y, radius, paint);
+			
+		}
+		
+		canvas.drawRect(50, 50, 50, 50, paint);
+	}
+
 }
