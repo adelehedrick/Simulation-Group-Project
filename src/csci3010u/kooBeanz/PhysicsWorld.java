@@ -4,6 +4,7 @@ package csci3010u.kooBeanz;
 
 
 import java.util.Random;
+
 import org.jbox2d.collision.AABB;
 import org.jbox2d.collision.CircleDef;
 import org.jbox2d.collision.PolygonDef;
@@ -17,9 +18,18 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
+import android.view.Display;
+import android.view.Surface;
 import android.view.View;
+import android.view.WindowManager;
 
-public class PhysicsWorld extends View{
+public class PhysicsWorld extends View implements SensorEventListener{
 
 	protected static final int GUIUPDATEIDENTIFIER = 0x231;
 	public int targetFPS = 40;
@@ -33,11 +43,27 @@ public class PhysicsWorld extends View{
 	public int World_W,World_H;
 	private Paint paint;
 	private float radius=10;
+	
+	
+	private SensorManager mSensorManager;
+	private Sensor mAccelerometer;
+	private Display mDisplay;
+	private float mSensorX;
+    private float mSensorY;
+    private long mSensorTimeStamp;
+    private long mCpuTimeStamp;
+	
 
-	public PhysicsWorld(Context context,int W,int H) {
+	public PhysicsWorld(Context context,int W,int H, SensorManager sm, Display d) {
 		super(context);
 		World_W=W;
 		World_H=H;
+		
+		mSensorManager = sm;
+		
+		mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		
+		mDisplay = d;
 
 		// Step 1: Create Physics World Boundaries
 		worldAABB = new AABB();
@@ -111,12 +137,12 @@ public class PhysicsWorld extends View{
 		CircleDef circle = new CircleDef();
 		circle.radius = (float) radius;
 		circle.density = (float) 1.0;
-		//circle.restitution=0.0f;
+		circle.restitution=1.0f;
 
 		// Assign shape to Body
 		bodies[count].createShape(circle);
 		bodies[count].setMassFromShapes();
-		bodies[count].m_linearDamping = 1;
+		bodies[count].m_linearDamping = 0;
 		
 
 		// Increase Counter
@@ -142,6 +168,92 @@ public class PhysicsWorld extends View{
 		}
 		
 		canvas.drawRect(50, 50, 50, 50, paint);
+	}
+
+
+	public void computePhysics() {
+		final float sx = mSensorX;
+        final float sy = mSensorY;
+        
+        // Force of gravity applied to our virtual object
+        final float m = 1000.0f; // mass of our virtual object
+        final float gx = -sx * m;
+        final float gy = -sy * m;
+
+        /*
+         * ·F = mA <=> A = ·F / m We could simplify the code by
+         * completely eliminating "m" (the mass) from all the equations,
+         * but it would hide the concepts from this sample code.
+         */
+        final float invm = 1.0f / m;
+        final float ax = gx * invm;
+        final float ay = gy * invm;
+
+        
+        world.setGravity(new Vec2(ax*5, ay*5));
+       
+    }
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	public void startSimulation() {
+	    /*
+	     * It is not necessary to get accelerometer events at a very high
+	     * rate, by using a slower rate (SENSOR_DELAY_UI), we get an
+	     * automatic low-pass filter, which "extracts" the gravity component
+	     * of the acceleration. As an added benefit, we use less power and
+	     * CPU resources.
+	     */
+	    mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_UI);
+	}
+	
+	public void stopSimulation() {
+	    mSensorManager.unregisterListener(this);
+	}
+
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER)
+            return;
+        /*
+         * record the accelerometer data, the event's timestamp as well as
+         * the current time. The latter is needed so we can calculate the
+         * "present" time during rendering. In this application, we need to
+         * take into account how the screen is rotated with respect to the
+         * sensors (which always return data in a coordinate space aligned
+         * to with the screen in its native orientation).
+         */
+		
+
+        switch (mDisplay.getRotation()) {
+            case Surface.ROTATION_0:
+                mSensorX = event.values[0];
+                mSensorY = event.values[1];
+                break;
+            case Surface.ROTATION_90:
+                mSensorX = -event.values[1];
+                mSensorY = event.values[0];
+                break;
+            case Surface.ROTATION_180:
+                mSensorX = -event.values[0];
+                mSensorY = -event.values[1];
+                break;
+            case Surface.ROTATION_270:
+                mSensorX = event.values[1];
+                mSensorY = -event.values[0];
+                break;
+        }
+
+        mSensorTimeStamp = event.timestamp;
+        mCpuTimeStamp = System.nanoTime();
+        
+        computePhysics();
+		
 	}
 
 }
