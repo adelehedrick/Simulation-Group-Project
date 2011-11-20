@@ -22,12 +22,9 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.view.Display;
 import android.view.Surface;
 import android.view.View;
-import android.view.WindowManager;
 
 public class PhysicsWorld extends View implements SensorEventListener{
 
@@ -52,6 +49,9 @@ public class PhysicsWorld extends View implements SensorEventListener{
     private float mSensorY;
     private long mSensorTimeStamp;
     private long mCpuTimeStamp;
+    
+    private Vec2 gravity;
+    private Vec2 gravity_threshold = new Vec2((float) 0.1, (float) 0.1);
 	
 
 	public PhysicsWorld(Context context,int W,int H, SensorManager sm, Display d) {
@@ -73,7 +73,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		worldAABB.upperBound.set(max);
 
 		// Step 2: Create Physics World with Gravity
-		Vec2 gravity = new Vec2((float) 0.0, (float) -20.0);
+		gravity = new Vec2((float) 0.0, (float) 0.0);
 		//Vec2 gravity = new Vec2((float) 0.0, (float) 0.0);
 		boolean doSleep = true;
 		world = new World(worldAABB, gravity, doSleep);
@@ -167,30 +167,22 @@ public class PhysicsWorld extends View implements SensorEventListener{
 			
 		}
 		
-		canvas.drawRect(50, 50, 50, 50, paint);
+		//canvas.drawRect(50, 50, 50, 50, paint);
 	}
 
 
+	/**
+	 * Change gravity only if new gravity is greater than
+	 * the threshold 
+	 */
 	public void computePhysics() {
-		final float sx = mSensorX;
-        final float sy = mSensorY;
         
-        // Force of gravity applied to our virtual object
-        final float m = 1000.0f; // mass of our virtual object
-        final float gx = -sx * m;
-        final float gy = -sy * m;
-
-        /*
-         * ·F = mA <=> A = ·F / m We could simplify the code by
-         * completely eliminating "m" (the mass) from all the equations,
-         * but it would hide the concepts from this sample code.
-         */
-        final float invm = 1.0f / m;
-        final float ax = gx * invm;
-        final float ay = gy * invm;
-
-        
-        world.setGravity(new Vec2(ax*5, ay*5));
+        Vec2 gravity_new = new Vec2 (-mSensorX, -mSensorY);
+        if (Math.abs(gravity_new.x - gravity.x) > gravity_threshold.x
+        		|| Math.abs(gravity_new.y - gravity.y) > gravity_threshold.y) {
+        	gravity = gravity_new;
+        	world.setGravity(gravity);
+        }
        
     }
 
