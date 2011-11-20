@@ -3,6 +3,7 @@ package csci3010u.kooBeanz;
 
 
 
+import java.util.HashMap;
 import java.util.Random;
 
 import org.jbox2d.collision.AABB;
@@ -11,13 +12,17 @@ import org.jbox2d.collision.PolygonDef;
 import org.jbox2d.common.Vec2;
 import org.jbox2d.dynamics.Body;
 import org.jbox2d.dynamics.BodyDef;
+import org.jbox2d.dynamics.ContactListener;
 import org.jbox2d.dynamics.World;
+import org.jbox2d.dynamics.contacts.ContactPoint;
+import org.jbox2d.dynamics.contacts.ContactResult;
 
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
+import android.graphics.Rect;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -32,7 +37,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	public int targetFPS = 40;
 	public float timeStep = 10.0f / targetFPS;
 	public int iterations = 5;
-	private Body[] bodies;
+	private HashMap<String,Body> new_bodies = new HashMap<String,Body>();
 	private int count = 0;
 	private AABB worldAABB;
 	public World world;
@@ -52,6 +57,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
     
     private Vec2 gravity;
     private Vec2 gravity_threshold = new Vec2((float) 0.1, (float) 0.1);
+    
+    //private Body portalBody;
 	
 
 	public PhysicsWorld(Context context,int W,int H, SensorManager sm, Display d) {
@@ -78,6 +85,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		boolean doSleep = true;
 		world = new World(worldAABB, gravity, doSleep);
 
+		setContactListener();
      
 		// Step 3:
 
@@ -89,6 +97,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float) World_W, (float) 10);
 		groundBody.createShape(groundShapeDef);
+		
+		groundBody.setUserData("Bottom Wall");
 
 		// up :
 		bodyDef = new BodyDef();
@@ -97,6 +107,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float) World_W, (float) 10);
 		groundBody.createShape(groundShapeDef);
+		
+		groundBody.setUserData("Up Wall");
 
 		// left :
 		bodyDef = new BodyDef();
@@ -105,6 +117,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float)10, (float) World_H);
 		groundBody.createShape(groundShapeDef);
+		
+		groundBody.setUserData("Left Wall");
 
 		// right :
 		bodyDef = new BodyDef();
@@ -113,9 +127,12 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float)10, (float) World_H);
 		groundBody.createShape(groundShapeDef);
+		
+		groundBody.setUserData("Portal");
+		
 
+		
 		// step 4: initialize
-		bodies=new Body[50];
 
 		paint=new Paint();
 		paint.setStyle(Style.FILL);
@@ -126,12 +143,13 @@ public class PhysicsWorld extends View implements SensorEventListener{
 
 
 	public void addBall() {
-
+		
+		
 		// Create Dynamic Body
 		BodyDef bodyDef = new BodyDef();
 		Random rnd = new Random();
 		bodyDef.position.set((float) radius*2+rnd.nextInt( (int)(World_W-radius*4) ), (float)2*radius+ rnd.nextInt( (int)(World_H-radius*4) ));
-		bodies[count] = world.createBody(bodyDef);
+		new_bodies.put("Ball"+count, world.createBody(bodyDef));
 
 		// Create Shape with Properties
 		CircleDef circle = new CircleDef();
@@ -140,11 +158,12 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		circle.restitution=1.0f;
 
 		// Assign shape to Body
-		bodies[count].createShape(circle);
-		bodies[count].setMassFromShapes();
-		bodies[count].m_linearDamping = 0;
+		new_bodies.get("Ball"+count).createShape(circle);
+		new_bodies.get("Ball"+count).setMassFromShapes();
+		new_bodies.get("Ball"+count).m_linearDamping = 0;
 		
-
+		new_bodies.get("Ball"+count).setUserData("Ball"+count);
+		
 		// Increase Counter
 		count += 1;        
 
@@ -160,14 +179,13 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	@Override
 	protected void onDraw(Canvas canvas) {
 		// draw balls
-
-
-		for(int j = 0;j<count;j++) {
-			canvas.drawCircle(bodies[j].getPosition().x,World_H- bodies[j].getPosition().y, radius, paint);
+		
+		for(String key: new_bodies.keySet()) {
+			canvas.drawCircle(new_bodies.get(key).getPosition().x,World_H- new_bodies.get(key).getPosition().y, radius, paint);
 			
 		}
 		
-		//canvas.drawRect(50, 50, 50, 50, paint);
+		canvas.drawRect(new Rect(World_W-10, 0, World_W, World_H), paint);
 	}
 
 
@@ -175,7 +193,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	 * Change gravity only if new gravity is greater than
 	 * the threshold 
 	 */
-	public void computePhysics() {
+	private void computePhysics() {
         
         Vec2 gravity_new = new Vec2 (-mSensorX, -mSensorY);
         if (Math.abs(gravity_new.x - gravity.x) > gravity_threshold.x
@@ -185,6 +203,47 @@ public class PhysicsWorld extends View implements SensorEventListener{
         }
        
     }
+	
+	private void setContactListener() {
+		
+		world.setContactListener(new ContactListener() {
+
+			@Override
+			public void add(ContactPoint point) {
+				//this.add(point);
+				if (((String)point.shape1.getBody().getUserData()).contentEquals("Portal")) {
+					System.out.println( "*******PORTAL HIT");
+					new_bodies.remove((String)point.shape2.getBody().getUserData());
+					
+		
+				} else if (((String)point.shape2.getBody().getUserData()).contentEquals("Portal")) {
+					System.out.println( "*******PORTAL HIT");
+					new_bodies.remove((String)point.shape1.getBody().getUserData());
+				}
+				
+			}
+
+			@Override
+			public void persist(ContactPoint point) {
+				//this.persist(point);
+				
+			}
+
+			@Override
+			public void remove(ContactPoint point) {
+				//this.remove(point);
+				
+			}
+
+			@Override
+			public void result(ContactResult point) {
+				//this.result(point);
+				
+			}
+			
+		});
+	}
+	
 
 	@Override
 	public void onAccuracyChanged(Sensor sensor, int accuracy) {
