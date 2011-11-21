@@ -3,9 +3,25 @@ package csci3010u.kooBeanz;
 
 
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.jbox2d.collision.AABB;
 import org.jbox2d.collision.CircleDef;
 import org.jbox2d.collision.PolygonDef;
@@ -16,6 +32,8 @@ import org.jbox2d.dynamics.ContactListener;
 import org.jbox2d.dynamics.World;
 import org.jbox2d.dynamics.contacts.ContactPoint;
 import org.jbox2d.dynamics.contacts.ContactResult;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -27,12 +45,18 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
 import android.view.View;
 
 public class PhysicsWorld extends View implements SensorEventListener{
+	
+	private static final String TAG = "ADELE";
 
+	/**
+	 * Physics world stuff
+	 */
 	protected static final int GUIUPDATEIDENTIFIER = 0x231;
 	public int targetFPS = 40;
 	public float timeStep = 10.0f / targetFPS;
@@ -46,7 +70,9 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	private Paint paint;
 	private float radius=10;
 	
-	
+	/**
+	 * Accelerometer stuff
+	 */
 	private SensorManager mSensorManager;
 	private Sensor mAccelerometer;
 	private Display mDisplay;
@@ -54,12 +80,18 @@ public class PhysicsWorld extends View implements SensorEventListener{
     private float mSensorY;
     private long mSensorTimeStamp;
     private long mCpuTimeStamp;
-    
     private Vec2 gravity;
     private Vec2 gravity_threshold = new Vec2((float) 0.1, (float) 0.1);
     
-    //private Body portalBody;
-	
+
+    /**
+     * Network stuff
+     */
+    private HttpClient httpclient = new DefaultHttpClient();
+	private HttpPost httppost = new HttpPost();
+    private String url = "http://leda.science.uoit.ca:15000";
+    private int clientID;
+    private int leftPortal, rightPortal;
 
 	public PhysicsWorld(Context context,int W,int H, SensorManager sm, Display d) {
 		super(context);
@@ -86,9 +118,194 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		world = new World(worldAABB, gravity, doSleep);
 
 		setContactListener();
+		
+		registerOnServer();
      
 		// Step 3:
+		createGroundBox();
 
+
+		paint=new Paint();
+		paint.setStyle(Style.FILL);
+		paint.setColor(Color.RED);
+		
+		startNetworkReciever();
+		
+		
+		
+
+	}
+
+	private void startNetworkReciever() {
+		
+		
+	    
+		new Thread(new Runnable() {
+
+		    
+			public void run() {
+				
+				boolean workingFine = true;
+				while(workingFine) {
+					try {
+			    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
+				        nameValuePairs.add(new BasicNameValuePair("id", clientID+""));
+				        
+						httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+						
+						httppost.setURI(new URI(url+"/get_mail"));
+						
+						// Execute HTTP Post Request
+				        HttpResponse response = httpclient.execute(httppost);
+				        
+				        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+				        StringBuilder builder = new StringBuilder();
+				        for (String line = null; (line = reader.readLine()) != null;) {
+				            builder.append(line).append("\n");
+				        }
+				        
+				        Log.e( TAG, "******SERVER RESPONSE: "+builder);
+				        
+				        Thread.sleep(100);
+				        
+					} catch (UnsupportedEncodingException e) {
+						Log.e( TAG, e.getMessage());
+						workingFine = false;
+						//e.printStackTrace();
+					} catch (URISyntaxException e) {
+						Log.e( TAG, e.getMessage());
+						workingFine = false;
+					} catch (ClientProtocolException e) {
+						Log.e( TAG, e.getMessage());
+						workingFine = false;
+					} catch (IOException e) {
+						Log.e( TAG, e.getMessage());
+						workingFine = false;
+					} catch (InterruptedException e) {
+						workingFine = false;
+					}
+					
+					
+				}
+			}
+		}).start();
+	}
+	
+	
+	public void registerOnServer() {
+		new Thread(new Runnable() {
+
+		    
+			public void run() {
+				
+		    		
+		    		
+				try {
+		    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
+			        nameValuePairs.add(new BasicNameValuePair("screen_height", World_H+""));
+			       
+			        
+					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+					
+					httppost.setURI(new URI(url+"/register"));
+					
+					// Execute HTTP Post Request
+			        HttpResponse response = httpclient.execute(httppost);
+			        
+			        //BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+		
+			        //String[] line = reader.readLine().trim().split(" ");
+			        
+
+			        
+			        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+			        StringBuilder builder = new StringBuilder();
+			        for (String line = null; (line = reader.readLine()) != null;) {
+			            builder.append(line).append("\n");
+			        }
+			        
+			        Log.d(TAG, "server said: "+builder);
+			        
+			        JSONObject obj = new JSONObject(builder.toString());
+			        
+			        clientID = Integer.parseInt(obj.getString("id"));
+			        leftPortal = Integer.parseInt(obj.getString("left screen"));
+			        rightPortal = Integer.parseInt(obj.getString("right screen"));
+			        
+			        Log.d( TAG, "******clientID: "+clientID+" leftPortal: "+leftPortal+" rightPortal: "+rightPortal);
+
+			        
+				} catch (UnsupportedEncodingException e) {
+					Log.e( TAG, e.getMessage());
+					//e.printStackTrace();
+				} catch (URISyntaxException e) {
+					Log.e( TAG, e.getMessage());
+				} catch (ClientProtocolException e) {
+					Log.e( TAG, e.getMessage());
+				} catch (IOException e) {
+					Log.e( TAG, e.getMessage());
+				} catch (JSONException e) {
+					Log.e( TAG, e.getMessage());
+				}
+				
+			}
+		}).start();
+	}
+	
+	public void sendBall(final int from_, final String to_, final float y_pos_, final float v_x_, final float v_y_) {
+		
+		
+		new Thread(new Runnable() {
+
+		    
+			public void run() {
+				
+		    		
+		    		
+				try {
+		    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
+			        nameValuePairs.add(new BasicNameValuePair("from", from_+""));
+			        nameValuePairs.add(new BasicNameValuePair("to", to_));
+			        nameValuePairs.add(new BasicNameValuePair("y_pos", y_pos_+""));
+			        nameValuePairs.add(new BasicNameValuePair("v_x", v_x_+""));
+			        nameValuePairs.add(new BasicNameValuePair("v_y", v_y_+""));
+			        
+					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+					
+					httppost.setURI(new URI(url+"/send_mail"));
+					
+					// Execute HTTP Post Request
+			        HttpResponse response = httpclient.execute(httppost);
+			        
+			        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+			        StringBuilder builder = new StringBuilder();
+			        for (String line = null; (line = reader.readLine()) != null;) {
+			            builder.append(line).append("\n");
+			        }
+			        
+			        Log.e( TAG, "******SERVER RESPONSE: "+builder);
+			        
+				} catch (UnsupportedEncodingException e) {
+					Log.e( TAG, e.getMessage());
+					//e.printStackTrace();
+				} catch (URISyntaxException e) {
+					Log.e( TAG, e.getMessage());
+				} catch (ClientProtocolException e) {
+					Log.e( TAG, e.getMessage());
+				} catch (IOException e) {
+					Log.e( TAG, e.getMessage());
+				}
+				
+			}
+		}).start();
+		
+		
+		
+    	
+
+    }//end send ball
+	
+	private void createGroundBox() {
 		//Create Ground Box :
 
 		BodyDef bodyDef = new BodyDef();
@@ -118,28 +335,18 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		groundShapeDef.setAsBox((float)10, (float) World_H);
 		groundBody.createShape(groundShapeDef);
 		
-		groundBody.setUserData("Left Wall");
+		groundBody.setUserData("Left Portal");
 
 		// right :
 		bodyDef = new BodyDef();
 		bodyDef.position.set(new Vec2((float) World_W+10, (float) 0.0 ));
-		groundBody = world.createBody(bodyDef);
+		Body groundBody2 = world.createBody(bodyDef);
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float)10, (float) World_H);
-		groundBody.createShape(groundShapeDef);
+		groundBody2.createShape(groundShapeDef);
 		
-		groundBody.setUserData("Portal");
-		
-
-		
-		// step 4: initialize
-
-		paint=new Paint();
-		paint.setStyle(Style.FILL);
-		paint.setColor(Color.RED);
-
+		groundBody2.setUserData("Right Portal");
 	}
-
 
 
 	public void addBall() {
@@ -180,12 +387,16 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	protected void onDraw(Canvas canvas) {
 		// draw balls
 		
-		for(String key: new_bodies.keySet()) {
+		for(String key: new_bodies.keySet()) 
 			canvas.drawCircle(new_bodies.get(key).getPosition().x,World_H- new_bodies.get(key).getPosition().y, radius, paint);
 			
-		}
 		
+		
+		//right portal
 		canvas.drawRect(new Rect(World_W-10, 0, World_W, World_H), paint);
+		
+		//left portal
+		canvas.drawRect(new Rect(0, 0, 10, World_H), paint);
 	}
 
 
@@ -211,15 +422,29 @@ public class PhysicsWorld extends View implements SensorEventListener{
 			@Override
 			public void add(ContactPoint point) {
 				//this.add(point);
-				if (((String)point.shape1.getBody().getUserData()).contentEquals("Portal")) {
-					System.out.println( "*******PORTAL HIT");
-					new_bodies.remove((String)point.shape2.getBody().getUserData());
-					
-		
-				} else if (((String)point.shape2.getBody().getUserData()).contentEquals("Portal")) {
-					System.out.println( "*******PORTAL HIT");
-					new_bodies.remove((String)point.shape1.getBody().getUserData());
-				}
+				if (new_bodies.containsKey((String)point.shape2.getBody().getUserData()))
+					if (((String)point.shape1.getBody().getUserData()).contentEquals("Left Portal")) {
+						Log.d( TAG, "*******PORTAL HIT");
+						sendBall(clientID, 	//to
+								"right", 	//from
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y, 			//y_pos
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
+						
+						new_bodies.remove((String)point.shape2.getBody().getUserData());
+						
+			
+					} else if (((String)point.shape1.getBody().getUserData()).contentEquals("Right Portal")) {
+						Log.d( TAG, "*******PORTAL HIT");
+						
+						sendBall(clientID, 	//to
+								"left", 	//from
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y, 			//y_pos
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
+						
+						new_bodies.remove((String)point.shape2.getBody().getUserData());
+					}
 				
 			}
 
