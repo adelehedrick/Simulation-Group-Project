@@ -68,6 +68,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	private PolygonDef groundShapeDef;
 	public int World_W,World_H;
 	private Paint paint;
+	private HashMap<String,Paint> body_paint = new HashMap<String,Paint>();
 	private float radius=10;
 	
 	/**
@@ -78,8 +79,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	private Display mDisplay;
 	private float mSensorX;
     private float mSensorY;
-    private long mSensorTimeStamp;
-    private long mCpuTimeStamp;
+
     private Vec2 gravity;
     private Vec2 gravity_threshold = new Vec2((float) 0.1, (float) 0.1);
     
@@ -89,9 +89,9 @@ public class PhysicsWorld extends View implements SensorEventListener{
      */
     private HttpClient httpclient = new DefaultHttpClient();
 	private HttpPost httppost = new HttpPost();
-    private String url = "http://leda.science.uoit.ca:15000";
+    private String url = "http://leda.science.uoit.ca:15001";
     private int clientID;
-    private int leftPortal, rightPortal;
+    private ArrayList<String> balls_to_send = new ArrayList<String>();
 
 	public PhysicsWorld(Context context,int W,int H, SensorManager sm, Display d) {
 		super(context);
@@ -127,11 +127,30 @@ public class PhysicsWorld extends View implements SensorEventListener{
 
 		paint=new Paint();
 		paint.setStyle(Style.FILL);
-		paint.setColor(Color.RED);
+		
+		switch(clientID%5) {
+		case 0:
+			paint.setColor(Color.RED);
+			break;
+		case 1:
+			paint.setColor(Color.BLUE);
+			break;
+		case 2:
+			paint.setColor(Color.GREEN);
+			break;
+		case 3:
+			paint.setColor(Color.MAGENTA);
+			break;
+		case 4:
+			paint.setColor(Color.YELLOW);
+			break;
+		default:
+			paint.setColor(Color.RED);
+			break;
+			
+		}
 		
 		startNetworkReciever();
-		
-		
 		
 
 	}
@@ -148,23 +167,52 @@ public class PhysicsWorld extends View implements SensorEventListener{
 				boolean workingFine = true;
 				while(workingFine) {
 					try {
-			    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
-				        nameValuePairs.add(new BasicNameValuePair("id", clientID+""));
-				        
-						httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+			    		
+						if (balls_to_send.size() > 0)
+							while (balls_to_send.size() > 0) {
+								
+								httppost.setURI(new URI(url+balls_to_send.get(0)));
+								
+								// Execute HTTP Post Request
+						        HttpResponse response = httpclient.execute(httppost);
+						        
+						        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+						        StringBuilder builder = new StringBuilder();
+						        for (String line = null; (line = reader.readLine()) != null;) {
+						            builder.append(line).append("\n");
+						        }
+						        
+						        Log.e( TAG, "******SEND BALL RESPONSE: "+builder);
+						        balls_to_send.remove(0);
+							}
 						
-						httppost.setURI(new URI(url+"/get_mail"));
+						httppost.setURI(new URI(url+"/ping?cid="+clientID));
 						
 						// Execute HTTP Post Request
 				        HttpResponse response = httpclient.execute(httppost);
 				        
 				        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
-				        StringBuilder builder = new StringBuilder();
+				     
 				        for (String line = null; (line = reader.readLine()) != null;) {
-				            builder.append(line).append("\n");
+				            
+				        	String[] args = line.split(",");
+				        	
+				        	if (args[3].equalsIgnoreCase("-1")) {
+				        		addBall(20, Float.parseFloat(args[0])*World_H,
+				        				Float.parseFloat(args[1]),
+				        				Float.parseFloat(args[3]),
+				        				Integer.parseInt(args[4]));
+				        	} else {
+				        		addBall(World_W-20, Float.parseFloat(args[0])*World_H,
+				        				Float.parseFloat(args[1]),
+				        				Float.parseFloat(args[3]),
+				        				Integer.parseInt(args[4]));
+				        	}
+				        	
+				            Log.e( TAG, "******PING RESPONSE: "+line);
 				        }
 				        
-				        Log.e( TAG, "******SERVER RESPONSE: "+builder);
+				       
 				        
 				        Thread.sleep(100);
 				        
@@ -193,115 +241,54 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	
 	
 	public void registerOnServer() {
-		new Thread(new Runnable() {
-
-		    
-			public void run() {
-				
-		    		
-		    		
-				try {
-		    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
-			        nameValuePairs.add(new BasicNameValuePair("screen_height", World_H+""));
-			       
-			        
-					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-					
-					httppost.setURI(new URI(url+"/register"));
-					
-					// Execute HTTP Post Request
-			        HttpResponse response = httpclient.execute(httppost);
-			        
-			        //BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
 		
-			        //String[] line = reader.readLine().trim().split(" ");
-			        
-
-			        
-			        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
-			        StringBuilder builder = new StringBuilder();
-			        for (String line = null; (line = reader.readLine()) != null;) {
-			            builder.append(line).append("\n");
-			        }
-			        
-			        Log.d(TAG, "server said: "+builder);
-			        
-			        JSONObject obj = new JSONObject(builder.toString());
-			        
-			        clientID = Integer.parseInt(obj.getString("id"));
-			        leftPortal = Integer.parseInt(obj.getString("left screen"));
-			        rightPortal = Integer.parseInt(obj.getString("right screen"));
-			        
-			        Log.d( TAG, "******clientID: "+clientID+" leftPortal: "+leftPortal+" rightPortal: "+rightPortal);
-
-			        
-				} catch (UnsupportedEncodingException e) {
-					Log.e( TAG, e.getMessage());
-					//e.printStackTrace();
-				} catch (URISyntaxException e) {
-					Log.e( TAG, e.getMessage());
-				} catch (ClientProtocolException e) {
-					Log.e( TAG, e.getMessage());
-				} catch (IOException e) {
-					Log.e( TAG, e.getMessage());
-				} catch (JSONException e) {
-					Log.e( TAG, e.getMessage());
-				}
 				
-			}
-		}).start();
+		    		
+		    		
+		try {
+			
+			httppost.setURI(new URI(url+"/register?w="+World_W+"&h="+World_H));
+			
+			// Execute HTTP Post Request
+	        HttpResponse response = httpclient.execute(httppost);
+	        
+	       BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
+
+
+	        
+	        String input = reader.readLine();
+	  
+	        if (!input.isEmpty())
+	        	clientID = Integer.parseInt(input);
+	        else Log.e( TAG, "invalid reponse from server");
+	        
+	        Log.d( TAG, "******clientID: "+clientID);
+
+	        
+		} catch (UnsupportedEncodingException e) {
+			Log.e( TAG, e.getMessage());
+			//e.printStackTrace();
+		} catch (URISyntaxException e) {
+			Log.e( TAG, e.getMessage());
+		} catch (ClientProtocolException e) {
+			Log.e( TAG, e.getMessage());
+		} catch (IOException e) {
+			Log.e( TAG, e.getMessage());
+		} 
+		
+			
+		
+		
 	}
 	
-	public void sendBall(final int from_, final String to_, final float y_pos_, final float v_x_, final float v_y_) {
+	public void sendBall(final int from_, final int to_, final float y_pos_, final float v_x_, final float v_y_) {
 		
-		
-		new Thread(new Runnable() {
-
-		    
-			public void run() {
-				
-		    		
-		    		
-				try {
-		    		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
-			        nameValuePairs.add(new BasicNameValuePair("from", from_+""));
-			        nameValuePairs.add(new BasicNameValuePair("to", to_));
-			        nameValuePairs.add(new BasicNameValuePair("y_pos", y_pos_+""));
-			        nameValuePairs.add(new BasicNameValuePair("v_x", v_x_+""));
-			        nameValuePairs.add(new BasicNameValuePair("v_y", v_y_+""));
-			        
-					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-					
-					httppost.setURI(new URI(url+"/send_mail"));
-					
-					// Execute HTTP Post Request
-			        HttpResponse response = httpclient.execute(httppost);
-			        
-			        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
-			        StringBuilder builder = new StringBuilder();
-			        for (String line = null; (line = reader.readLine()) != null;) {
-			            builder.append(line).append("\n");
-			        }
-			        
-			        Log.e( TAG, "******SERVER RESPONSE: "+builder);
-			        
-				} catch (UnsupportedEncodingException e) {
-					Log.e( TAG, e.getMessage());
-					//e.printStackTrace();
-				} catch (URISyntaxException e) {
-					Log.e( TAG, e.getMessage());
-				} catch (ClientProtocolException e) {
-					Log.e( TAG, e.getMessage());
-				} catch (IOException e) {
-					Log.e( TAG, e.getMessage());
-				}
-				
-			}
-		}).start();
-		
-		
-		
-    	
+		balls_to_send.add("/update?cid="+from_+
+				"&side="+to_+
+				"&y="+y_pos_+
+				"&vx="+v_x_+
+				"&vy="+v_y_+
+				"&colour="+clientID%5);
 
     }//end send ball
 	
@@ -352,10 +339,51 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	public void addBall() {
 		
 		
+		Random rnd = new Random();
+
+		addBall((float) radius*2+rnd.nextInt( (int)(World_W-radius*4) ), 	//x
+				(float)2*radius+ rnd.nextInt( (int)(World_H-radius*4) ), 	//y
+				0, 															//v_x
+				0,															//v_y
+				clientID);       											//colour
+
+	}
+	
+	public void addBall (float x, float y, float v_x, float v_y, int colour) {
+		
+		if (colour == clientID)
+			body_paint.put("Ball"+count, paint);
+		else {
+			body_paint.put("Ball"+count, new Paint());
+			body_paint.get("Ball"+count).setStyle(Style.FILL);
+			
+			switch(clientID%5) {
+			case 0:
+				body_paint.get("Ball"+count).setColor(Color.RED);
+				break;
+			case 1:
+				body_paint.get("Ball"+count).setColor(Color.BLUE);
+				break;
+			case 2:
+				body_paint.get("Ball"+count).setColor(Color.GREEN);
+				break;
+			case 3:
+				body_paint.get("Ball"+count).setColor(Color.MAGENTA);
+				break;
+			case 4:
+				body_paint.get("Ball"+count).setColor(Color.YELLOW);
+				break;
+			default:
+				body_paint.get("Ball"+count).setColor(Color.RED);
+				break;
+				
+			}
+		}
+			
+		
 		// Create Dynamic Body
 		BodyDef bodyDef = new BodyDef();
-		Random rnd = new Random();
-		bodyDef.position.set((float) radius*2+rnd.nextInt( (int)(World_W-radius*4) ), (float)2*radius+ rnd.nextInt( (int)(World_H-radius*4) ));
+		bodyDef.position.set(x, y);
 		new_bodies.put("Ball"+count, world.createBody(bodyDef));
 
 		// Create Shape with Properties
@@ -368,12 +396,13 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		new_bodies.get("Ball"+count).createShape(circle);
 		new_bodies.get("Ball"+count).setMassFromShapes();
 		new_bodies.get("Ball"+count).m_linearDamping = 0;
+		new_bodies.get("Ball"+count).m_linearVelocity = new Vec2(v_x, v_y);
 		
 		new_bodies.get("Ball"+count).setUserData("Ball"+count);
 		
 		// Increase Counter
-		count += 1;        
-
+		count += 1;
+				
 	}
 
   
@@ -388,7 +417,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		// draw balls
 		
 		for(String key: new_bodies.keySet()) 
-			canvas.drawCircle(new_bodies.get(key).getPosition().x,World_H- new_bodies.get(key).getPosition().y, radius, paint);
+			canvas.drawCircle(new_bodies.get(key).getPosition().x,World_H- new_bodies.get(key).getPosition().y, radius, body_paint.get(key));
 			
 		
 		
@@ -425,9 +454,9 @@ public class PhysicsWorld extends View implements SensorEventListener{
 				if (new_bodies.containsKey((String)point.shape2.getBody().getUserData()))
 					if (((String)point.shape1.getBody().getUserData()).contentEquals("Left Portal")) {
 						Log.d( TAG, "*******PORTAL HIT");
-						sendBall(clientID, 	//to
-								"right", 	//from
-								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y, 			//y_pos
+						sendBall(clientID, 	//from
+								1, 	//to
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
 						
@@ -437,9 +466,9 @@ public class PhysicsWorld extends View implements SensorEventListener{
 					} else if (((String)point.shape1.getBody().getUserData()).contentEquals("Right Portal")) {
 						Log.d( TAG, "*******PORTAL HIT");
 						
-						sendBall(clientID, 	//to
-								"left", 	//from
-								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y, 			//y_pos
+						sendBall(clientID, 	//from
+								-1, 	//to
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
 						
@@ -524,9 +553,6 @@ public class PhysicsWorld extends View implements SensorEventListener{
                 mSensorY = -event.values[0];
                 break;
         }
-
-        mSensorTimeStamp = event.timestamp;
-        mCpuTimeStamp = System.nanoTime();
         
         computePhysics();
 		
