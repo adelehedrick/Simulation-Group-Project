@@ -63,6 +63,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	public int World_W,World_H;
 	private Paint paint;
 	private HashMap<String,Paint> body_paint = new HashMap<String,Paint>();
+	private HashMap<String,Integer> body_paint_id = new HashMap<String,Integer>();
 	private float radius=10;
 	
 	/**
@@ -194,12 +195,12 @@ public class PhysicsWorld extends View implements SensorEventListener{
 				        	if (args[3].equalsIgnoreCase("-1")) {
 				        		addBall(20, Float.parseFloat(args[0])*World_H,
 				        				Float.parseFloat(args[1]),
-				        				Float.parseFloat(args[3]),
+				        				Float.parseFloat(args[2]),
 				        				Integer.parseInt(args[4]));
 				        	} else {
 				        		addBall(World_W-20, Float.parseFloat(args[0])*World_H,
 				        				Float.parseFloat(args[1]),
-				        				Float.parseFloat(args[3]),
+				        				Float.parseFloat(args[2]),
 				        				Integer.parseInt(args[4]));
 				        	}
 				        	
@@ -208,7 +209,7 @@ public class PhysicsWorld extends View implements SensorEventListener{
 				        
 				       
 				        
-				        Thread.sleep(100);
+				        Thread.sleep(200);
 				        
 					} catch (UnsupportedEncodingException e) {
 						Log.e( TAG, e.getMessage());
@@ -275,14 +276,14 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		
 	}
 	
-	public void sendBall(final int from_, final int to_, final float y_pos_, final float v_x_, final float v_y_) {
+	public void sendBall(final int from_, final int to_, final float y_pos_, final float v_x_, final float v_y_, final int colour) {
 		
 		balls_to_send.add("/update?cid="+from_+
 				"&side="+to_+
 				"&y="+y_pos_+
 				"&vx="+v_x_+
 				"&vy="+v_y_+
-				"&colour="+clientID%5);
+				"&colour="+colour);
 
     }//end send ball
 	
@@ -345,13 +346,15 @@ public class PhysicsWorld extends View implements SensorEventListener{
 	
 	public void addBall (float x, float y, float v_x, float v_y, int colour) {
 		
-		if (colour == clientID)
+		if (colour == clientID) {
 			body_paint.put("Ball"+count, paint);
-		else {
+			body_paint_id.put("Ball"+count, clientID%5);
+		} else {
 			body_paint.put("Ball"+count, new Paint());
 			body_paint.get("Ball"+count).setStyle(Style.FILL);
+			body_paint_id.put("Ball"+count, colour);
 			
-			switch(clientID%5) {
+			switch(colour) {
 			case 0:
 				body_paint.get("Ball"+count).setColor(Color.RED);
 				break;
@@ -387,12 +390,19 @@ public class PhysicsWorld extends View implements SensorEventListener{
 		circle.restitution=1.0f;
 
 		// Assign shape to Body
+		new_bodies.get("Ball"+count).setUserData("Ball"+count);
 		new_bodies.get("Ball"+count).createShape(circle);
 		new_bodies.get("Ball"+count).setMassFromShapes();
 		new_bodies.get("Ball"+count).m_linearDamping = 0;
-		new_bodies.get("Ball"+count).m_linearVelocity = new Vec2(v_x, v_y);
+		//new_bodies.get("Ball"+count).wakeUp();
+		new_bodies.get("Ball"+count).setLinearVelocity(new Vec2(v_x, v_y));
+		//new_bodies.get("Ball"+count).applyImpulse(new Vec2(v_x, v_y), new_bodies.get("Ball"+count).getPosition());
+		new_bodies.get("Ball"+count).wakeUp();
+		//new_bodies.get("Ball"+count).setLinearVelocity(new Vec2(5, -4));
+		Log.e( TAG, "******SET VELOCITY: "+v_x+ " "+v_y);
 		
-		new_bodies.get("Ball"+count).setUserData("Ball"+count);
+		Log.e( TAG, "******GET VELOCITY: "+new_bodies.get("Ball"+count).getLinearVelocity().x+ " "+new_bodies.get("Ball"+count).getLinearVelocity().y);
+		
 		
 		// Increase Counter
 		count += 1;
@@ -452,7 +462,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
 								1, 	//to
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
-								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y,		//v_y
+								body_paint_id.get((String)point.shape2.getBody().getUserData()));						//colour
 						
 						new_bodies.remove((String)point.shape2.getBody().getUserData());
 						
@@ -464,7 +475,8 @@ public class PhysicsWorld extends View implements SensorEventListener{
 								-1, 	//to
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
 								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
-								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y);	//v_y
+								new_bodies.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y,		//v_y
+								body_paint_id.get((String)point.shape2.getBody().getUserData()));						//colour
 						
 						new_bodies.remove((String)point.shape2.getBody().getUserData());
 					}
