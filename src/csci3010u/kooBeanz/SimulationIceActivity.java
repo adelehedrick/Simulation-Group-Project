@@ -7,11 +7,15 @@ import android.os.Handler;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
+import android.view.MotionEvent;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.View.OnTouchListener;
  
-public class SimulationIceActivity extends Activity {
+public class SimulationIceActivity extends Activity implements OnTouchListener {
 	 
 	PhysicsWorld mWorld;
 	 
@@ -22,6 +26,8 @@ public class SimulationIceActivity extends Activity {
     private WindowManager mWindowManager;
     private Display mDisplay;
     private WakeLock mWakeLock;
+    
+    private static final String TAG = "ADELE.ACTIVITY";
 	 
 	       
 	 
@@ -54,6 +60,8 @@ public class SimulationIceActivity extends Activity {
 
 		mWorld = new PhysicsWorld(this,dm.widthPixels,dm.heightPixels, mSensorManager, mDisplay);
 		this.setContentView(this.mWorld);
+		
+		mWorld.setOnTouchListener(this);
 
 		// Add 10 Balls
 		for (int i=0; i<2; i++) {
@@ -109,6 +117,22 @@ public class SimulationIceActivity extends Activity {
 	@Override
 	protected void onStop() {
 		super.onStop();
+	}
+
+
+	@Override
+	public boolean onTouch(View v, MotionEvent e) {
+		float x = e.getX();
+		float y = e.getY();
+		switch(e.getActionMasked()) {
+			case MotionEvent.ACTION_DOWN:
+				mWorld.addBall(x, mWorld.World_H-y, 0, 0, mWorld.clientID);
+				break;
+		}
+		
+		Log.e( TAG, "*******TOUCH EVENT");
+				
+		return true;
 	}
 	 
 }
