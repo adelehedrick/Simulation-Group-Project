@@ -33,14 +33,16 @@ import android.view.View.OnTouchListener;
 import android.view.Window;
 import android.view.WindowManager;
  
+/**
+ * The main (and only) Android activity which will create a physics world 
+ * and then handle the touch, accelerometer, and network communication
+ * between the device and the physics world.
+ */
 public class SimulationIceActivity extends Activity implements OnTouchListener, SensorEventListener {
 	 
-	PhysicsWorld mWorld;
+	PhysicsWorld pWorld;
 	 
 	private Handler mHandler;
-	
-	private SensorManager mSensorManager;
-	private Sensor mAccelerometer;
     private PowerManager mPowerManager;
     private WindowManager mWindowManager;
     private Display mDisplay;
@@ -48,9 +50,13 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
     
     private static final String TAG = "ADELE.ACTIVITY";
 	 
+    /**
+     * Accelerometer and gravity stuff
+     */
     Vec2 gravity = new Vec2 (0, 0);
     Vec2 gravity_threshold = new Vec2 ((float)0.1, (float)0.1);
-	       
+    private SensorManager mSensorManager;
+	private Sensor mAccelerometer;    
     
     /**
      * Network stuff
@@ -60,8 +66,11 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
     private String url = "http://leda.science.uoit.ca:15001";
     int clientID;
 	 
+    /**
+     * When the activity is created this method
+     * is called and will set everything up.
+     */
 	@Override
-	 
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		
@@ -89,19 +98,17 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 		DisplayMetrics dm = new DisplayMetrics();
 		getWindowManager().getDefaultDisplay().getMetrics(dm);
 
-		mWorld = new PhysicsWorld(this,dm.widthPixels,dm.heightPixels);
-		this.setContentView(this.mWorld);
-		
-		mWorld.setOnTouchListener(this);
+		//set up the physics world
+		pWorld = new PhysicsWorld(this,dm.widthPixels,dm.heightPixels);
+		this.setContentView(this.pWorld);
+		pWorld.setOnTouchListener(this);
 		
 		//get a clientID and then generate paint based upon it
 		registerOnServer();
-		mWorld.setPaint();
+		pWorld.setPaint();
 
 		// Add some initial balls
-		for (int i=0; i<2; i++) {
-			mWorld.addToCreateList();
-		}
+		for (int i=0; i<2; i++) { pWorld.addToCreateList(); }
 	 
 	 
 		// Start Regular Update
@@ -114,6 +121,17 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 		
 	}
 	 
+	/**
+	 * This is the main UI thread that calls the update method
+	 * in the physics world in which the simulation goes through 
+	 * a "step" in the calculations
+	 */
+	private Runnable update = new Runnable() {
+		public void run() {
+			pWorld.update();
+			mHandler.postDelayed(update, (long) (10/pWorld.timeStep));
+		}
+	};
 	   
 	@Override
 	protected void onPause() {
@@ -121,13 +139,6 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 		mHandler.removeCallbacks(update);
         mWakeLock.release();
 	}
-	 
-	private Runnable update = new Runnable() {
-		public void run() {
-			mWorld.update();
-			mHandler.postDelayed(update, (long) (10/mWorld.timeStep));
-		}
-	};
 	 
 	@Override
 	protected void onResume() {
@@ -149,18 +160,19 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 	 * 
 	 */
 
+	/**
+	 * When a person touches the screen, a ball will be created 
+	 * at that same location
+	 */
 	@Override
 	public boolean onTouch(View v, MotionEvent e) {
 		float x = e.getX();
 		float y = e.getY();
 		switch(e.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
-				mWorld.addBall(x, mWorld.World_H-y, 0, 0, mWorld.clientID);
+				pWorld.addBall(x, pWorld.World_H-y, 0, 0, pWorld.clientID);
 				break;
-		}
-		
-		//Log.e( TAG, "*******TOUCH EVENT");
-				
+		}		
 		return true;
 	}
 
@@ -172,11 +184,16 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 
 	@Override
 	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-		// TODO Auto-generated method stub
+		// 
 		
 	}
 
 
+	/**
+	 * When the accelerometer notices a change this method
+	 * gets triggered and will get the new acceleration
+	 * and then apply it to the physics world 
+	 */
 	@Override
 	public void onSensorChanged(SensorEvent event) {
 		float mSensorX = 0, mSensorY = 0;
@@ -185,9 +202,9 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
             return;
 		
 		switch (mDisplay.getRotation()) {
-	        case Surface.ROTATION_0:
-	            mSensorX = event.values[0];
-	            mSensorY = event.values[1];
+	        case Surface.ROTATION_0: 
+	        	mSensorX = event.values[0];	
+	        	mSensorY = event.values[1];
 	            break;
 	        case Surface.ROTATION_90:
 	            mSensorX = -event.values[1];
@@ -203,14 +220,18 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 	            break;
 	    }
 		
+		/*
+		 * If the gravity change is greater than the threshold
+		 * then we will update the gravity in the physics world
+		 */
 		Vec2 gravity_new = new Vec2 (-mSensorX, -mSensorY);
         if (Math.abs(gravity_new.x - gravity.x) > gravity_threshold.x
         		|| Math.abs(gravity_new.y - gravity.y) > gravity_threshold.y) {
         	gravity = gravity_new;
-        	mWorld.updateGravity(gravity);
+        	pWorld.updateGravity(gravity);
         }
 		
-	}
+	}//end onSensorChange
 	
 	/**
 	 * 
@@ -218,6 +239,12 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 	 * 
 	 */
 	 
+	/**
+	 * The never ending network thread that will send balls to the 
+	 * server if there are any to send from the physics world,
+	 * and will ping the server to see if there are any balls waiting
+	 * to be received.
+	 */
 	private void networkThread() {
 	    
 		new Thread(new Runnable() {
@@ -225,16 +252,17 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 		    
 			public void run() {
 				
+				//stop running the thread when there is a connection
+				//error with the server
 				boolean workingFine = true;
 				while(workingFine) {
 					try {
 			    		
-						if (mWorld.balls_to_send.size() > 0)
-							while (mWorld.balls_to_send.size() > 0) {
+						//if there are balls to send, then send them
+						if (pWorld.balls_to_send.size() > 0)
+							while (pWorld.balls_to_send.size() > 0) {
 								
-								httppost.setURI(new URI(url+mWorld.balls_to_send.get(0)));
-								
-								// Execute HTTP Post Request
+								httppost.setURI(new URI(url+pWorld.balls_to_send.get(0)));
 						        HttpResponse response = httpclient.execute(httppost);
 						        
 						        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
@@ -243,33 +271,27 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 						            builder.append(line).append("\n");
 						        }
 						        
-						        //Log.d( "Adele>PhysicsWorld>startNetworkReciever", "SEND BALL RESPONSE: "+builder);
-						        mWorld.balls_to_send.remove(0);
+						        pWorld.balls_to_send.remove(0);
 							}
 						
+						/*
+						 * Now ping the server to see if there are any 
+						 * balls to receive
+						 */
 						httppost.setURI(new URI(url+"/ping?cid="+clientID));
-						
-						// Execute HTTP Post Request
-				        HttpResponse response = httpclient.execute(httppost);
-				        
+				        HttpResponse response = httpclient.execute(httppost);				        
 				        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
 				     
 				        for (String line = null; (line = reader.readLine()) != null;) {
-				            
 				        	String[] args = line.split(",");
-				        	
-				        	mWorld.balls_to_create.add( new BallToAdd(
-				        			(args[3].equalsIgnoreCase("-1") ? 20 : mWorld.World_W-20),	//x
-				        			Float.parseFloat(args[0])*mWorld.World_H,					//y
+				        	pWorld.balls_to_create.add( new BallToAdd(
+				        			(args[3].equalsIgnoreCase("-1") ? 20 : pWorld.World_W-20),	//x
+				        			Float.parseFloat(args[0])*pWorld.World_H,					//y
 			        				Float.parseFloat(args[1]),									//v_x
 			        				Float.parseFloat(args[2]),									//v_y
 			        				Integer.parseInt(args[4])));								//colour
-				        	
-				            //Log.d( TAG, "******PING RESPONSE: "+line);
 				        }
-				        
-				       
-				        
+
 				        Thread.sleep(50);
 				        
 					} catch (UnsupportedEncodingException e) {
@@ -289,34 +311,30 @@ public class SimulationIceActivity extends Activity implements OnTouchListener, 
 						workingFine = false;
 					}
 					
-					
-				}
-			}
+				}//end while working fine
+			} //end run
 		}).start();
 		
-		
-		
-	}
+	}//end networkThread
 
 
+	/**
+	 * Register the client on the server to obtain a client id
+	 * which is then used to determine the colour of the client's 
+	 * world/balls
+	 */
 	public void registerOnServer() {
 	
 		try {
 			
-			httppost.setURI(new URI(url+"/register?w="+mWorld.World_W+"&h="+mWorld.World_H));
-			
-			// Execute HTTP Post Request
+			httppost.setURI(new URI(url+"/register?w="+pWorld.World_W+"&h="+pWorld.World_H));
 	        HttpResponse response = httpclient.execute(httppost);
-	        
-	       BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
-	
-	
-	        
+	        BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
 	        String input = reader.readLine();
 	  
 	        if (!input.equals(null)) {
 	        	clientID = Integer.parseInt(input);
-	        	mWorld.clientID = this.clientID;
+	        	pWorld.clientID = this.clientID;
 	        } else Log.e( TAG, "invalid reponse from server");
 	        
 	        Log.d( TAG, "******clientID: "+clientID);

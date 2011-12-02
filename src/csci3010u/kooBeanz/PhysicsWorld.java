@@ -27,6 +27,11 @@ import android.graphics.Paint.Style;
 import android.graphics.Rect;
 import android.view.View;
 
+/**
+ * The physics world that will have multiple balls bouncing off each other, 
+ * and the top and bottom walls, and then pass through the left and right 
+ * portals into other clients' physics world.
+ */
 public class PhysicsWorld extends View {
 	
 	private static final String TAG = "ADELE.PhysicsWorld";
@@ -79,6 +84,9 @@ public class PhysicsWorld extends View {
     int clientID;
     public ArrayList<String> balls_to_send = new ArrayList<String>();
 
+    /**
+     * Creates and initializes the physics world
+     */
 	public PhysicsWorld(Context context,int W,int H) {
 		super(context);
 		World_W=W;
@@ -93,11 +101,15 @@ public class PhysicsWorld extends View {
 		boolean doSleep = true;
 		world = new World(worldAABB, gravity, doSleep);
 
-		setContactListener();
+		setContactListener();	//listens for balls hitting the portal
 		
-		createGroundBox();
+		createGroundBox();		//creates the walls and portals
 	}
 	
+	/**
+	 * Sets up the paint colour for this physics world
+	 * based upon the client id
+	 */
 	public void setPaint() {
 		paint=new Paint();
 		paint.setStyle(Style.FILL);
@@ -112,59 +124,60 @@ public class PhysicsWorld extends View {
 		}
 	}
 	
-	public void sendBall(final int from_, final int to_, final float y_pos_, final float v_x_, final float v_y_, final int colour) {
-		
+	/**
+	 * 
+	 */
+	public void addToSendBallList(	final int from_, 
+									final int to_, 
+									final float y_pos_, 
+									final float v_x_, 
+									final float v_y_, 
+									final int colour) {
 		balls_to_send.add("/update?cid="+from_+
 				"&side="+to_+
 				"&y="+y_pos_+
 				"&vx="+v_x_+
 				"&vy="+v_y_+
 				"&colour="+colour);
-
-    }//end send ball
+    }
 	
 	private void createGroundBox() {
 		
 		
-		//Create Ground Box :
-
+		//bottom wall
 		BodyDef bodyDef = new BodyDef();
 		bodyDef.position.set(new Vec2((float) 0.0, (float) -10.0));
 		Body groundBody = world.createBody(bodyDef);
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float) World_W, (float) 10);
 		groundBody.createShape(groundShapeDef);
-		
 		groundBody.setUserData("Bottom Wall");
 
-		// up :
+		// top wall
 		bodyDef = new BodyDef();
 		bodyDef.position.set(new Vec2((float) 0.0, (float) (World_H+10.0) ));
 		groundBody = world.createBody(bodyDef);
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float) World_W, (float) 10);
 		groundBody.createShape(groundShapeDef);
-		
 		groundBody.setUserData("Up Wall");
 
-		// left :
+		// left portal
 		bodyDef = new BodyDef();
 		bodyDef.position.set(new Vec2((float) -10, (float) 0.0 ));
 		groundBody = world.createBody(bodyDef);
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float)10, (float) World_H);
 		groundBody.createShape(groundShapeDef);
-		
 		groundBody.setUserData("Left Portal");
 
-		// right :
+		// right portal
 		bodyDef = new BodyDef();
 		bodyDef.position.set(new Vec2((float) World_W+10, (float) 0.0 ));
 		Body groundBody2 = world.createBody(bodyDef);
 		groundShapeDef = new PolygonDef();
 		groundShapeDef.setAsBox((float)10, (float) World_H);
 		groundBody2.createShape(groundShapeDef);
-		
 		groundBody2.setUserData("Right Portal");
 	}
 
@@ -287,7 +300,7 @@ public class PhysicsWorld extends View {
 						to = -1;
 				
 				if (to != 0) {
-					sendBall(clientID, 	//from
+					addToSendBallList(clientID, 	//from
 							to, 	//to
 							balls.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
 							balls.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
