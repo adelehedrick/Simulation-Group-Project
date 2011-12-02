@@ -20,16 +20,11 @@ import org.jbox2d.dynamics.contacts.ContactPoint;
 import org.jbox2d.dynamics.contacts.ContactResult;
 
 import android.content.Context;
-import android.content.res.Resources;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
 import android.graphics.Rect;
-import android.graphics.Shader;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.view.View;
 
 public class PhysicsWorld extends View {
@@ -130,10 +125,7 @@ public class PhysicsWorld extends View {
 	
 	private void createGroundBox() {
 		
-		Resources res = this.getResources();
-	    Drawable TileMe = res.getDrawable(R.drawable.repeat_bg);
-		this.setBackgroundDrawable(TileMe);
-		  
+		
 		//Create Ground Box :
 
 		BodyDef bodyDef = new BodyDef();
