@@ -125,7 +125,8 @@ public class PhysicsWorld extends View {
 	}
 	
 	/**
-	 * 
+	 * Creates the string with the ball parameters that will 
+	 * be sent to the server
 	 */
 	public void addToSendBallList(	final int from_, 
 									final int to_, 
@@ -141,6 +142,9 @@ public class PhysicsWorld extends View {
 				"&colour="+colour);
     }
 	
+	/**
+	 * Creates the walls and portals in the physics world
+	 */
 	private void createGroundBox() {
 		
 		
@@ -182,6 +186,9 @@ public class PhysicsWorld extends View {
 	}
 
 
+	/**
+	 * Adds balls to the "balls_to_create" list
+	 */
 	public synchronized void addToCreateList() {
 		
 		
@@ -195,6 +202,9 @@ public class PhysicsWorld extends View {
 				clientID));												//colour
 	}
 	
+	/**
+	 * Adds a ball to the physics world
+	 */
 	public synchronized void addBall (float x, float y, float v_x, float v_y, int colour) {
 		
 		String id = "Ball"+count;
@@ -241,6 +251,11 @@ public class PhysicsWorld extends View {
 						
 	} //end addBall
 
+	/**
+	 * Updates the physics world. Before doing a "step"
+	 * the method will destroy any balls marked to destroy
+	 * and create any balls waiting to be created.
+	 */
 	public void update() {
 		
 		//destroy all the balls in the "to destroy" list
@@ -265,6 +280,9 @@ public class PhysicsWorld extends View {
 		postInvalidate();
 	}  
 
+	/**
+	 * Draws the balls and portals onto the screen
+	 */
 	@Override
 	protected void onDraw(Canvas canvas) {
 		
@@ -281,10 +299,16 @@ public class PhysicsWorld extends View {
 		canvas.drawRect(new Rect(0, 0, 10, World_H), paint);
 	}
 
+	/**
+	 * Updates the gravity in the physics world
+	 */
 	public void updateGravity (Vec2 gravity) {
 		world.setGravity(gravity);
 	}
 	
+	/**
+	 * Listens for balls to hit the portal
+	 */
 	private void setContactListener() {
 		
 		world.setContactListener(new ContactListener() {
@@ -293,19 +317,23 @@ public class PhysicsWorld extends View {
 			public void add(ContactPoint point) {
 				int to = 0;
 				
+				//if a portal was hit, set the to address
 				if (balls.containsKey((String)point.shape2.getBody().getUserData()))
 					if (((String)point.shape1.getBody().getUserData()).contentEquals("Left Portal")) 
 						to = 1;
 					else if (((String)point.shape1.getBody().getUserData()).contentEquals("Right Portal"))
 						to = -1;
 				
+				//if to address is set then add the ball to the "balls_to_send" list
+				//and then set up the ball to be destroyed from the physics world
+				//and remove it from the canvas
 				if (to != 0) {
 					addToSendBallList(clientID, 	//from
-							to, 	//to
+							to, 					//to
 							balls.get((String)point.shape2.getBody().getUserData()).getPosition().y/World_H, 	//y_pos
-							balls.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 	//v_x
+							balls.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().x, 		//v_x
 							balls.get((String)point.shape2.getBody().getUserData()).getLinearVelocity().y,		//v_y
-							ball_paint_id.get((String)point.shape2.getBody().getUserData()));						//colour
+							ball_paint_id.get((String)point.shape2.getBody().getUserData()));					//colour
 					
 					balls.remove((String)point.shape2.getBody().getUserData());
 					balls_to_destroy.add(point.shape2.getBody());
